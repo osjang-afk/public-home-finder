@@ -1,0 +1,993 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>공공주택 맞춤 검색기</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --border: #e5e7eb; --text: #1f2937; --muted: #6b7280; --muted-2: #9aa2b1; --ink: #111827;
+    --blue: #2e90fa; --blue-strong: #1d4ed8; --blue-soft: #eff6ff; --blue-flat: #2563eb;
+    --amber: #f79009; --amber-bg: #fff4e5; --rose: #d92d20; --rose-bg: #fdecea; --good: #16a34a; --good-bg: #e9f9ef;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, .05);
+    --shadow-md: 0 6px 18px rgba(15, 23, 42, .08);
+    --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Pretendard', -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum";
+  }
+  ::selection { background: var(--blue-flat); color: #fff; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    max-width: 1000px; margin: 0 auto; padding: 26px 20px 6px;
+  }
+  header .header-titles { flex: 1; min-width: 0; }
+  header .eyebrow {
+    display: block; margin: 0 0 6px; color: var(--blue-strong); font-size: 11px; font-weight: 800; letter-spacing: .05em;
+  }
+  header h1 { font-size: 21px; margin: 0 0 4px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+  header p { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+  .nav-favorite-btn {
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex-shrink: 0;
+    border: none; color: #fff; font-weight: 700;
+    font-size: 13px; padding: 10px 18px; border-radius: 999px; cursor: pointer;
+    background: linear-gradient(135deg, #2e90fa, #2563eb); box-shadow: 0 8px 18px rgba(37, 99, 235, .18);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .nav-favorite-btn:hover { transform: translateY(-1px); }
+  .nav-favorite-btn:active { transform: translateY(0); }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 14px 20px 70px; }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 12px; font-weight: 700; display: flex; align-items: center; gap: 7px; color: var(--ink); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  input[type=text], input[type=number], select {
+    padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+    background: #fff; color: var(--text); font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus {
+    outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft);
+  }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 12px; font-size: 12.5px; cursor: pointer; user-select: none; transition: all .15s ease; background: #fff;
+  }
+  .chip:hover { border-color: #c9cee0; }
+  .chip input { accent-color: var(--blue-flat); }
+  .chip.active { background: rgba(37, 99, 235, .08); border-color: transparent; color: var(--blue-strong); font-weight: 700; }
+
+  button#submitBtn {
+    margin-top: 16px; background: var(--blue-flat); color: #fff; border: none;
+    padding: 11px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+    box-shadow: var(--shadow-sm); transition: background .15s ease, transform .15s ease;
+  }
+  button#submitBtn:hover { background: var(--blue-strong); transform: translateY(-1px); }
+  button#submitBtn:active { transform: translateY(0); }
+
+  #status { font-size: 12px; color: var(--muted-2); margin: 4px 2px 14px; }
+
+  /* calendar */
+  .rail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .rail-head .eyebrow { margin-bottom: 4px; }
+  .rail-head h2 { margin: 0; font-size: 15px; font-weight: 800; color: var(--ink); }
+  .month-controls { display: flex; align-items: center; gap: 8px; }
+  .cal-nav-btn {
+    border: 1px solid var(--border); background: #fff; width: 26px; height: 26px; border-radius: 7px;
+    cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; transition: background .15s ease;
+  }
+  .cal-nav-btn:hover { background: #f1f2f5; }
+  #calendarTitle { font-size: 13px; font-weight: 700; color: var(--ink); min-width: 84px; text-align: center; display: inline-block; }
+
+  .calendar-layout { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(210px, .8fr); gap: 20px; align-items: start; }
+  .weekday-row, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .weekday-row {
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--muted);
+    font-size: 11px; font-weight: 700; text-align: center;
+  }
+  .weekday-row span { padding: 6px 0; }
+  .weekday-row span:first-child { color: var(--rose); }
+  .weekday-row span:last-child { color: var(--blue); }
+  .calendar-grid { border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .calendar-day {
+    position: relative; min-height: 52px; padding: 6px; border-top: 1px solid var(--border); border-right: 1px solid var(--border);
+    font-size: 12px; color: var(--text); cursor: pointer; transition: background .15s ease;
+  }
+  .calendar-day.is-outside { color: var(--muted-2); background: #fafbfc; cursor: default; }
+  .calendar-day.is-sunday strong { color: var(--rose); }
+  .calendar-day.is-saturday strong { color: var(--blue); }
+  .calendar-day:hover:not(.is-outside) { background: #f5f8ff; }
+  .calendar-day.is-today strong { text-decoration: underline; text-underline-offset: 3px; }
+  .calendar-day.is-selected { background: var(--blue-soft); box-shadow: inset 0 0 0 2px rgba(37, 99, 235, .25); }
+  .calendar-day strong { font-size: 12.5px; font-weight: 700; }
+  .calendar-count {
+    position: absolute; right: 5px; bottom: 5px; min-width: 17px; height: 16px; padding: 0 5px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; color: #fff;
+    background: linear-gradient(135deg, var(--blue), var(--blue-strong));
+  }
+  .calendar-events { border-left: 1px solid var(--border); padding-left: 16px; min-height: 0; }
+  .calendar-events-header { margin-bottom: 10px; }
+  .calendar-events-header strong { font-size: 12.5px; color: var(--ink); }
+  .calendar-events-list { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
+  .calendar-empty { color: var(--muted-2); font-size: 12.5px; text-align: center; padding: 26px 8px; line-height: 1.6; }
+  .calendar-event-card {
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; background: #fff; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .calendar-event-card:hover { border-color: rgba(37, 99, 235, .32); background: #f8fbff; }
+  .calendar-event-card.is-favorite { border-left: 3px solid var(--amber); }
+  .calendar-event-title { font-size: 12.5px; font-weight: 700; margin-top: 5px; line-height: 1.4; }
+  .calendar-event-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .calendar-event-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .calendar-event-actions .pill-btn { font-size: 11px; padding: 4px 9px; }
+  .calendar-note { font-size: 11px; color: var(--muted-2); margin-top: 14px; }
+  .calendar-day .fav-dot {
+    position: absolute; top: 5px; right: 6px; font-size: 10px; color: var(--amber); line-height: 1;
+  }
+  @media (max-width: 720px) { .calendar-layout { grid-template-columns: 1fr; } .calendar-events { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 14px; } }
+
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 12px; }
+  .section-title h2 { font-size: 16px; margin: 0; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+  .section-title span { font-size: 12px; color: var(--muted-2); font-weight: 600; }
+
+  .card-list { display: flex; flex-direction: column; gap: 10px; }
+  .notice-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px 12px 18px; display: flex; flex-direction: column; gap: 7px; cursor: pointer;
+    box-shadow: var(--shadow-sm); border-left: 4px solid var(--muted-2);
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+  }
+  .notice-card:hover { border-color: rgba(37, 99, 235, .25); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .notice-card.corp-LH { border-left-color: #13aeea; }
+  .notice-card.corp-SH { border-left-color: #35b80f; }
+  .notice-card.corp-GH { border-left-color: #118ba6; }
+  .notice-card.corp-HUG { border-left-color: #2563eb; }
+  .notice-card.corp-other { border-left-color: var(--amber); }
+  .notice-card.top { box-shadow: 0 0 0 1.5px var(--blue-soft), var(--shadow-md); }
+
+  .notice-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    background: #eef1f5; color: var(--muted); font-weight: 700;
+  }
+  .badge.corp-LH { background: #13aeea; color: #fff; }
+  .badge.corp-SH { background: #35b80f; color: #fff; }
+  .badge.corp-GH { background: #118ba6; color: #fff; }
+  .badge.corp-HUG { background: #2563eb; color: #fff; }
+  .badge.corp-other { background: var(--amber); color: #fff; }
+  .badge.dday-soon { background: var(--rose-bg); color: var(--rose); }
+  .badge.dday-ok { background: var(--good-bg); color: var(--good); }
+  .badge.tag { background: var(--blue-soft); color: var(--blue-strong); }
+
+  .notice-title { font-size: 14.5px; font-weight: 700; line-height: 1.4; letter-spacing: -.01em; color: var(--ink); }
+  .notice-meta { font-size: 12.5px; color: var(--muted); }
+  .notice-link { font-size: 12.5px; color: var(--blue-strong); text-decoration: none; font-weight: 600; }
+  .notice-link:hover { text-decoration: underline; }
+
+  .empty {
+    color: var(--muted-2); font-size: 13px; padding: 30px 20px; text-align: center;
+    background: #fff; border: 1px dashed var(--border); border-radius: var(--radius);
+  }
+  .disclaimer {
+    font-size: 11.5px; line-height: 1.6; color: #92610f; background: var(--amber-bg);
+    border: 1px solid #f6dfa3; border-radius: 8px; padding: 12px 14px; margin-top: 14px;
+  }
+
+  .notice-actions { display: flex; gap: 14px; align-items: center; margin-top: 2px; flex-wrap: wrap; }
+  .notice-actions a { font-size: 12.5px; text-decoration: none; }
+  .btn-detail { color: var(--blue-strong); font-weight: 700; }
+  .btn-detail:hover { text-decoration: underline; }
+
+  .pill-btn {
+    border: 1px solid var(--border); background: #fff; color: var(--muted); font-size: 12px; font-weight: 600;
+    padding: 5px 11px; border-radius: 999px; cursor: pointer; font-family: inherit; transition: all .15s ease;
+  }
+  .pill-btn:hover { border-color: #c9cee0; }
+  .star-toggle.active { color: var(--amber); border-color: #f6dfa3; background: var(--amber-bg); }
+  .exclude-toggle.active { color: var(--rose); border-color: #f5c6c2; background: var(--rose-bg); }
+  .notice-actions > :last-child { margin-left: auto; }
+
+  #excludedBar { font-size: 12.5px; color: var(--muted); margin: 4px 0 16px; display: flex; align-items: center; gap: 10px; }
+  #excludedBar b { color: var(--text); }
+  #excludedBar button {
+    border: 1px solid var(--border); background: #fff; color: var(--muted); font-size: 12px; font-weight: 600;
+    padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: all .15s ease;
+  }
+  #excludedBar button:hover { border-color: #c9cee0; }
+  #excludedList { margin-bottom: 16px; }
+
+  .sort-tabs { display: inline-flex; gap: 4px; background: #eceff5; padding: 4px; border-radius: 999px; margin-bottom: 14px; }
+  .sort-tab {
+    border: none; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600;
+    padding: 7px 15px; border-radius: 999px; cursor: pointer; transition: all .15s ease;
+  }
+  .sort-tab.active { background: #fff; color: var(--text); box-shadow: var(--shadow-sm); }
+
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: #fff;
+    color: var(--text); font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    margin-bottom: 18px; transition: all .15s ease;
+  }
+  .back-btn:hover { background: #f1f2f5; transform: translateX(-2px); }
+  #favoritesView { display: none; }
+
+  /* modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15, 18, 30, .55); backdrop-filter: blur(2px);
+    display: none; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 100;
+  }
+  .modal-backdrop.open { display: flex; animation: fadeIn .18s ease; }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes popIn { from { opacity: 0; transform: translateY(10px) scale(.98) } to { opacity: 1; transform: translateY(0) scale(1) } }
+  .modal-box {
+    background: var(--card); border-radius: 14px; max-width: 660px; width: 100%; padding: 26px;
+    position: relative; margin-bottom: 30px; box-shadow: var(--shadow-lg); animation: popIn .2s ease;
+  }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px; border: none; background: #f1f2f5; width: 32px; height: 32px;
+    border-radius: 50%; cursor: pointer; font-size: 15px; color: var(--muted); transition: background .15s ease;
+  }
+  .modal-close:hover { background: #e6e9f0; }
+  .modal-title { font-size: 17px; font-weight: 800; margin: 10px 34px 8px 0; line-height: 1.4; letter-spacing: -.01em; color: var(--ink); }
+  .modal-meta { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+  .modal-actions { display: flex; gap: 8px; margin: 12px 0 4px; }
+  .modal-actions .pill-btn { font-size: 12.5px; padding: 7px 14px; }
+  .modal-section { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .modal-section:first-of-type { border-top: none; }
+  .modal-section h3 {
+    font-size: 12px; margin: 0 0 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .modal-desc {
+    font-size: 13.5px; line-height: 1.7; white-space: pre-line; background: #fafbfc;
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+  }
+  .doc-btn {
+    display: inline-flex; align-items: center; gap: 7px; background: var(--blue-flat);
+    color: #fff; text-decoration: none; padding: 10px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 700;
+    box-shadow: var(--shadow-sm);
+  }
+  .doc-btn:hover { background: var(--blue-strong); }
+  .doc-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+  .doc-list a { font-size: 12.5px; color: var(--blue-strong); text-decoration: none; font-weight: 500; }
+  .doc-list a:hover { text-decoration: underline; }
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 9px; }
+  .img-grid a { display: block; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .img-grid img { width: 100%; height: 92px; object-fit: cover; display: block; transition: transform .25s ease; }
+  .img-grid a:hover img { transform: scale(1.07); }
+  .modal-loading { padding: 40px 0; text-align: center; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 560px) {
+    header { flex-direction: column; align-items: stretch; }
+    .nav-favorite-btn { align-self: flex-end; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-titles">
+    <span class="eyebrow">PUBLIC-HOME.COM DATA</span>
+    <h1>공공주택 맞춤 검색기</h1>
+    <p>개인용 조건 필터 · 추천 · 캘린더 도구</p>
+  </div>
+  <button class="nav-favorite-btn" id="openFavoritesView" type="button">⭐ 관심 목록 <span id="favoriteNavCount">(0)</span></button>
+</header>
+<main>
+<div id="searchView">
+  <div class="panel">
+    <h2>🔍 키워드 검색</h2>
+    <input id="keyword" type="text" placeholder="지역, 단지명, 공고명으로 검색 (예: 신혼희망, 부천, 청년주택)" style="width:100%" />
+  </div>
+
+  <div class="panel">
+    <h2>🧾 내 조건 입력</h2>
+    <div class="grid">
+      <label class="field">나이
+        <input id="age" type="number" min="0" max="120" placeholder="예: 32" />
+      </label>
+      <label class="field">거주/희망 지역
+        <select id="province"><option value="">전체 지역</option></select>
+      </label>
+    </div>
+    <div class="checks" id="tagChips"></div>
+    <button id="submitBtn" type="button">내 조건으로 검색</button>
+  </div>
+
+  <div id="status">불러오는 중...</div>
+
+  <div class="panel calendar-panel">
+    <div class="rail-head">
+      <div>
+        <p class="eyebrow">NOTICE CALENDAR</p>
+        <h2>📅 공고 캘린더</h2>
+      </div>
+      <div class="month-controls">
+        <button class="cal-nav-btn" id="prevMonth" type="button">‹</button>
+        <span id="calendarTitle">-</span>
+        <button class="cal-nav-btn" id="nextMonth" type="button">›</button>
+      </div>
+    </div>
+    <div class="calendar-layout">
+      <div class="calendar-month">
+        <div class="weekday-row">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </div>
+      <div class="calendar-events">
+        <div class="calendar-events-header"><strong id="calendarEventsTitle">날짜를 선택하세요</strong></div>
+        <div class="calendar-events-list" id="calendarEventsList">
+          <div class="calendar-empty">달력에서 날짜를 클릭하면<br>그 날 접수 중인 공고가 표시됩니다.</div>
+        </div>
+      </div>
+    </div>
+    <p class="calendar-note">현재 검색어·조건 필터가 적용된 공고 기준입니다. 상시모집(마감일 미정) 공고는 달력에 표시되지 않습니다.</p>
+  </div>
+
+  <div id="excludedBar">
+    <span>제외한 공고 <b id="excludedCount">0</b>건</span>
+    <button id="toggleExcludedPanel" type="button">목록 보기</button>
+  </div>
+  <div class="card-list" id="excludedList" style="display:none"></div>
+
+  <div class="section-title">
+    <h2>🎯 추천 공고 TOP 5</h2>
+    <span id="recoCount"></span>
+  </div>
+  <div class="card-list" id="recoList"></div>
+
+  <div class="section-title">
+    <h2>지원 가능 공고</h2>
+    <span id="matchCount"></span>
+  </div>
+  <div class="sort-tabs" id="sortTabs">
+    <button class="sort-tab active" type="button" data-sort="deadline">마감임박순</button>
+    <button class="sort-tab" type="button" data-sort="latest">최신공고순</button>
+  </div>
+  <div class="card-list" id="matchList"></div>
+
+  <div class="disclaimer">
+    ⚠️ 이 도구는 공공주택알리미의 공급대상 태그(청년/신혼부부/저소득 등)와 지역·마감일만으로 1차 필터링합니다.
+    정확한 나이 상한, 소득/자산 기준, 세부 자격요건은 반드시 각 공고의 원본 공고문(PDF)에서 확인하세요.
+  </div>
+</div>
+
+<div id="favoritesView">
+  <button class="back-btn" id="closeFavoritesView" type="button">← 검색으로 돌아가기</button>
+  <div class="section-title">
+    <h2>⭐ 관심 목록</h2>
+    <span id="favoriteCount"></span>
+  </div>
+  <div class="card-list" id="favoriteList"></div>
+</div>
+</main>
+
+<div class="modal-backdrop" id="detailModal">
+  <div class="modal-box">
+    <button class="modal-close" id="closeDetailModal" type="button" aria-label="닫기">✕</button>
+    <div id="detailModalBody"></div>
+  </div>
+</div>
+
+<script>
+const FIREBASE_KEY = "AIzaSyBrKtY6vl0e6Mc-TnCqTcB7BBZQ335mNcQ";
+const FIRESTORE_BASE = "https://firestore.googleapis.com/v1/projects/public-housing-333410/databases/(default)/documents";
+const API = `${FIRESTORE_BASE}/notice_posting/notice_items?key=${FIREBASE_KEY}`;
+const SITE_ORIGIN = "https://public-home.com";
+const detailCache = new Map();
+let sortMode = 'deadline'; // 'deadline' | 'latest'
+let currentModalNoticeId = null;
+let currentFilteredNotices = [];
+let calendarCursor = (() => { const d = new Date(); d.setDate(1); return d; })();
+let selectedCalendarDate = null;
+
+const EXCLUDE_KEY = 'publicHomeExcludedIds:v1';
+function loadExcludedIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(EXCLUDE_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function saveExcludedIds() { localStorage.setItem(EXCLUDE_KEY, JSON.stringify([...excludedIds])); }
+let excludedIds = loadExcludedIds();
+let showExcludedPanel = false;
+
+const FAVORITE_KEY = 'publicHomeFavoriteIds:v1';
+function loadFavoriteIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(FAVORITE_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function saveFavoriteIds() { localStorage.setItem(FAVORITE_KEY, JSON.stringify([...favoriteIds])); }
+let favoriteIds = loadFavoriteIds();
+
+const TAG_LABELS = {
+  newlyMarried: '신혼부부', lowIncome: '저소득/차상위', disabled: '장애인',
+  withChildren: '다자녀/자녀가구', withOldParents: '부모부양', firstTimeBuyer: '생애최초',
+  housingVulnerable: '주거취약계층', worker: '근로자',
+};
+const AUTO_TAG_LABELS = { youth: '청년(19~39세, 나이로 자동판정)' };
+const CORP_KEYS = ['LH', 'SH', 'GH', 'HUG'];
+
+let notices = [];
+
+function decodeValue(v) {
+  if (v == null) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('booleanValue' in v) return Boolean(v.booleanValue);
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('nullValue' in v) return null;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(decodeValue);
+  if ('mapValue' in v) return decodeFields(v.mapValue.fields || {});
+  return null;
+}
+function decodeFields(fields) {
+  const out = {};
+  for (const k in fields) out[k] = decodeValue(fields[k]);
+  return out;
+}
+function parseDate(s) {
+  if (!s) return null;
+  const parts = s.split('.').map(Number);
+  if (parts.length < 3 || parts.some(isNaN)) return null;
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d);
+}
+function todayMidnight() {
+  const t = new Date(); t.setHours(0, 0, 0, 0); return t;
+}
+function sameDay(a, b) {
+  return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function daysLeft(n) {
+  const end = parseDate(n.endDate);
+  if (!end) return null; // 날짜 형식이 아님 (예: "마감시까지" 상시모집)
+  return Math.round((end - todayMidnight()) / 86400000);
+}
+function isOpen(n) {
+  const d = daysLeft(n);
+  return d === null || d >= 0;
+}
+function corpKey(corporation) {
+  return CORP_KEYS.includes(corporation) ? corporation : 'other';
+}
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+async function loadNotices() {
+  setStatus('공고 데이터를 불러오는 중...');
+  try {
+    const res = await fetch(API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const doc = await res.json();
+    const items = decodeFields(doc.fields).items || [];
+    notices = items.map(it => {
+      const af = it.alertFilter || {};
+      let targets = af.supplyTargets;
+      if (typeof targets === 'string') targets = [targets];
+      if (!Array.isArray(targets)) targets = [];
+      return {
+        id: it.id, title: it.title || '', corporation: it.corporation || '기타',
+        type: it.type || '', region: it.region || '', startDate: it.startDate || '',
+        endDate: it.endDate || '', state: it.state || '',
+        announcementType: af.announcementType || '',
+        supplyTargets: targets,
+      };
+    });
+    populateProvinceOptions();
+    setStatus(`총 ${notices.length}건의 공고를 불러왔습니다. (진행중 ${notices.filter(isOpen).length}건)`);
+    runSearch();
+  } catch (err) {
+    setStatus('데이터를 불러오지 못했습니다: ' + err.message + ' (네트워크 연결을 확인하세요)');
+  }
+}
+
+function populateProvinceOptions() {
+  const provinces = Array.from(new Set(notices.map(n => n.region).filter(Boolean))).sort();
+  const sel = document.getElementById('province');
+  sel.innerHTML = '<option value="">전체 지역</option>' +
+    provinces.map(p => `<option value="${p}">${p}</option>`).join('');
+}
+
+function buildTagChips() {
+  const box = document.getElementById('tagChips');
+  const allTags = { ...AUTO_TAG_LABELS, ...TAG_LABELS };
+  box.innerHTML = Object.entries(allTags).map(([key, label]) => {
+    const disabled = key === 'youth' ? 'disabled title="나이 입력으로 자동 반영됩니다"' : '';
+    return `<label class="chip" data-key="${key}">
+      <input type="checkbox" data-tag="${key}" ${disabled} />${label}
+    </label>`;
+  }).join('');
+  box.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'INPUT') {
+        const input = chip.querySelector('input');
+        if (input.disabled) return;
+        input.checked = !input.checked;
+      }
+      chip.classList.toggle('active', chip.querySelector('input').checked);
+    });
+  });
+}
+
+function getUserTags() {
+  const tags = new Set();
+  const age = Number(document.getElementById('age').value);
+  if (age >= 19 && age <= 39) tags.add('youth');
+  document.querySelectorAll('#tagChips input[data-tag]:checked').forEach(inp => tags.add(inp.dataset.tag));
+  return tags;
+}
+
+function ddayBadge(n) {
+  const d = daysLeft(n);
+  if (d === null) return `<span class="badge">상시모집</span>`;
+  const cls = d <= 7 ? 'dday-soon' : 'dday-ok';
+  const label = d === 0 ? '오늘 마감' : (d < 0 ? '마감' : `D-${d}`);
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function escapeHTML(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderStarToggle(id) {
+  const isFav = favoriteIds.has(id);
+  return `<button type="button" class="pill-btn star-toggle ${isFav ? 'active' : ''}" data-id="${escapeHTML(id)}">${isFav ? '★' : '☆'} 관심</button>`;
+}
+function renderExcludeToggle(id) {
+  const isExcluded = excludedIds.has(id);
+  return `<button type="button" class="pill-btn exclude-toggle ${isExcluded ? 'active' : ''}" data-id="${escapeHTML(id)}">${isExcluded ? '✅ 제외됨 (되돌리기)' : '🚫 제외'}</button>`;
+}
+
+function renderCard(n, opts) {
+  const tagBadges = (opts.matchedTags || []).map(t => `<span class="badge tag">${TAG_LABELS[t] || t}</span>`).join('');
+  const ck = corpKey(n.corporation);
+  return `
+    <div class="notice-card ${opts.top ? 'top' : ''} corp-${ck}" data-id="${escapeHTML(n.id)}">
+      <div class="notice-top">
+        <span class="badge corp-${ck}">${escapeHTML(n.corporation)}</span>
+        <span class="badge">${escapeHTML(n.type)}</span>
+        ${ddayBadge(n)}
+        ${tagBadges}
+      </div>
+      <div class="notice-title">${escapeHTML(n.title)}</div>
+      <div class="notice-meta">${escapeHTML(n.region)} · 접수 ${escapeHTML(n.startDate)} ~ ${escapeHTML(n.endDate)}</div>
+      <div class="notice-actions">
+        <a class="btn-detail" data-id="${escapeHTML(n.id)}">상세보기 (설명·이미지·공고문) →</a>
+        <a class="notice-link" href="${SITE_ORIGIN}/notices/${encodeURIComponent(n.id)}/" target="_blank" rel="noopener">원본 페이지 →</a>
+        ${renderStarToggle(n.id)}
+        ${renderExcludeToggle(n.id)}
+      </div>
+    </div>`;
+}
+
+function runSearch() {
+  const keyword = document.getElementById('keyword').value.trim().toLowerCase();
+  const province = document.getElementById('province').value;
+  const userTags = getUserTags();
+
+  let matched = notices.filter(n => {
+    if (excludedIds.has(n.id)) return false;
+    if (!isOpen(n)) return false;
+    if (province && n.region !== province) return false;
+    if (keyword) {
+      const hay = `${n.title} ${n.region} ${n.corporation} ${n.type}`.toLowerCase();
+      if (!hay.includes(keyword)) return false;
+    }
+    if (n.supplyTargets.length === 0) return true;
+    return n.supplyTargets.some(t => t === 'etc' || userTags.has(t));
+  }).map(n => {
+    const matchedTags = n.supplyTargets.filter(t => userTags.has(t));
+    const d = daysLeft(n);
+    const score = matchedTags.length * 10 - (d === null ? 30 : d) * 0.05;
+    return { ...n, matchedTags, score };
+  });
+
+  currentFilteredNotices = matched;
+
+  const recommended = [...matched].sort((a, b) => b.score - a.score).slice(0, 5);
+
+  if (sortMode === 'latest') {
+    const startKey = n => parseDate(n.startDate)?.getTime() ?? -Infinity;
+    matched.sort((a, b) => startKey(b) - startKey(a)); // 최근에 올라온 공고가 먼저
+  } else {
+    const deadlineKey = n => { const d = daysLeft(n); return d === null ? 9999 : d; };
+    matched.sort((a, b) => deadlineKey(a) - deadlineKey(b)); // 마감이 임박한 공고가 먼저
+  }
+
+  document.getElementById('matchCount').textContent = `${matched.length}건`;
+  document.getElementById('recoCount').textContent = `${recommended.length}건`;
+
+  document.getElementById('matchList').innerHTML = matched.length
+    ? matched.map(n => renderCard(n, { matchedTags: n.matchedTags })).join('')
+    : '<div class="empty">조건에 맞는 공고가 없습니다. 지역이나 조건을 조정해 보세요.</div>';
+
+  document.getElementById('recoList').innerHTML = recommended.length
+    ? recommended.map(n => renderCard(n, { matchedTags: n.matchedTags, top: true })).join('')
+    : '<div class="empty">추천할 공고가 없습니다.</div>';
+
+  renderExcludedPanel();
+  renderFavoritePanel();
+  renderCalendar();
+  refreshOpenModalActions();
+}
+
+function renderExcludedPanel() {
+  const excludedNotices = notices.filter(n => excludedIds.has(n.id));
+  document.getElementById('excludedCount').textContent = excludedNotices.length;
+  document.getElementById('toggleExcludedPanel').textContent = showExcludedPanel ? '목록 숨기기' : '목록 보기';
+  const panel = document.getElementById('excludedList');
+  panel.style.display = showExcludedPanel ? 'flex' : 'none';
+  if (showExcludedPanel) {
+    panel.innerHTML = excludedNotices.length
+      ? excludedNotices.map(n => renderCard(n, {})).join('')
+      : '<div class="empty">제외한 공고가 없습니다.</div>';
+  }
+}
+
+function renderFavoritePanel() {
+  const deadlineKey = n => { const d = daysLeft(n); return d === null ? 9999 : d; };
+  const favoriteNotices = notices
+    .filter(n => favoriteIds.has(n.id))
+    .sort((a, b) => deadlineKey(a) - deadlineKey(b));
+  document.getElementById('favoriteCount').textContent = `${favoriteNotices.length}건`;
+  document.getElementById('favoriteNavCount').textContent = `(${favoriteNotices.length})`;
+  document.getElementById('favoriteList').innerHTML = favoriteNotices.length
+    ? favoriteNotices.map(n => renderCard(n, {})).join('')
+    : '<div class="empty">아직 관심 등록한 공고가 없습니다. 카드의 "☆ 관심" 버튼을 눌러 등록하세요.</div>';
+}
+
+// ---- 캘린더 ----
+function noticesOnDate(dateObj) {
+  return currentFilteredNotices.filter(n => {
+    const s = parseDate(n.startDate), e = parseDate(n.endDate);
+    if (!s || !e) return false;
+    return s <= dateObj && dateObj <= e;
+  });
+}
+
+function buildMonthCells(year, month) {
+  const startOffset = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const cells = [];
+  for (let i = startOffset - 1; i >= 0; i--) {
+    cells.push({ date: new Date(year, month - 1, daysInPrevMonth - i), outside: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ date: new Date(year, month, d), outside: false });
+  }
+  while (cells.length < 42) {
+    const last = cells[cells.length - 1].date;
+    cells.push({ date: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1), outside: true });
+  }
+  return cells;
+}
+
+function renderCalendar() {
+  const year = calendarCursor.getFullYear();
+  const month = calendarCursor.getMonth();
+  document.getElementById('calendarTitle').textContent = `${year}년 ${month + 1}월`;
+
+  const today = todayMidnight();
+  const cells = buildMonthCells(year, month);
+  document.getElementById('calendarGrid').innerHTML = cells.map(cell => {
+    const d = cell.date;
+    const dayNotices = cell.outside ? [] : noticesOnDate(d);
+    const count = dayNotices.length;
+    const hasFavorite = dayNotices.some(n => favoriteIds.has(n.id));
+    const classes = ['calendar-day'];
+    if (cell.outside) classes.push('is-outside');
+    if (d.getDay() === 0) classes.push('is-sunday');
+    if (d.getDay() === 6) classes.push('is-saturday');
+    if (sameDay(d, today)) classes.push('is-today');
+    if (selectedCalendarDate && sameDay(d, selectedCalendarDate)) classes.push('is-selected');
+    return `<div class="${classes.join(' ')}" data-date="${d.getFullYear()}-${d.getMonth()}-${d.getDate()}">
+      <strong>${d.getDate()}</strong>
+      ${hasFavorite ? `<span class="fav-dot" title="관심 등록한 공고 있음">★</span>` : ''}
+      ${count > 0 ? `<span class="calendar-count">${count}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  renderCalendarEvents();
+}
+
+function renderCalendarEvents() {
+  const title = document.getElementById('calendarEventsTitle');
+  const list = document.getElementById('calendarEventsList');
+  if (!selectedCalendarDate) {
+    title.textContent = '날짜를 선택하세요';
+    list.innerHTML = '<div class="calendar-empty">달력에서 날짜를 클릭하면<br>그 날 접수 중인 공고가 표시됩니다.</div>';
+    return;
+  }
+  const y = selectedCalendarDate.getFullYear(), m = selectedCalendarDate.getMonth() + 1, d = selectedCalendarDate.getDate();
+  const items = noticesOnDate(selectedCalendarDate);
+  title.textContent = `${y}.${String(m).padStart(2, '0')}.${String(d).padStart(2, '0')} · ${items.length}건`;
+  list.innerHTML = items.length
+    ? items.map(n => `
+        <div class="calendar-event-card ${favoriteIds.has(n.id) ? 'is-favorite' : ''}" data-id="${escapeHTML(n.id)}">
+          <div class="notice-top">
+            <span class="badge corp-${corpKey(n.corporation)}">${escapeHTML(n.corporation)}</span>
+            ${ddayBadge(n)}
+          </div>
+          <div class="calendar-event-title">${escapeHTML(n.title)}</div>
+          <div class="calendar-event-meta">${escapeHTML(n.region)}</div>
+          <div class="calendar-event-actions">
+            ${renderStarToggle(n.id)}
+            ${renderExcludeToggle(n.id)}
+          </div>
+        </div>`).join('')
+    : '<div class="calendar-empty">이 날 접수 중인 공고가 없습니다.</div>';
+}
+
+document.getElementById('calendarGrid').addEventListener('click', e => {
+  const cell = e.target.closest('.calendar-day');
+  if (!cell || cell.classList.contains('is-outside')) return;
+  const [y, m, d] = cell.dataset.date.split('-').map(Number);
+  const clicked = new Date(y, m, d);
+  selectedCalendarDate = (selectedCalendarDate && sameDay(selectedCalendarDate, clicked)) ? null : clicked;
+  renderCalendar();
+});
+document.getElementById('calendarEventsList').addEventListener('click', e => {
+  const star = e.target.closest('.star-toggle');
+  if (star) {
+    const id = star.dataset.id;
+    if (favoriteIds.has(id)) favoriteIds.delete(id); else favoriteIds.add(id);
+    saveFavoriteIds();
+    runSearch();
+    return;
+  }
+  const excl = e.target.closest('.exclude-toggle');
+  if (excl) {
+    const id = excl.dataset.id;
+    if (excludedIds.has(id)) excludedIds.delete(id); else excludedIds.add(id);
+    saveExcludedIds();
+    runSearch();
+    return;
+  }
+  const card = e.target.closest('.calendar-event-card');
+  if (!card) return;
+  showNoticeDetail(card.dataset.id);
+});
+document.getElementById('prevMonth').addEventListener('click', () => {
+  calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+  renderCalendar();
+});
+
+document.getElementById('submitBtn').addEventListener('click', runSearch);
+document.getElementById('keyword').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+
+document.getElementById('sortTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.sort-tab');
+  if (!btn) return;
+  sortMode = btn.dataset.sort;
+  document.querySelectorAll('#sortTabs .sort-tab').forEach(b => b.classList.toggle('active', b === btn));
+  runSearch();
+});
+
+async function fetchNoticeDetail(id) {
+  if (detailCache.has(id)) return detailCache.get(id);
+  const url = `${FIRESTORE_BASE}/notice_items/${encodeURIComponent(id)}?key=${FIREBASE_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const doc = await res.json();
+  const detail = doc.fields ? decodeFields(doc.fields) : null;
+  detailCache.set(id, detail);
+  return detail;
+}
+
+function pickDescription(detail) {
+  const parts = [];
+  const eligibility = (detail?.신청자격 || []).map(x => x?.기타).filter(Boolean);
+  if (eligibility.length) parts.push(eligibility.join('\n\n'));
+  else if (detail?.공급개요?.공고내용) parts.push(detail.공급개요.공고내용);
+
+  const etc = detail?.기타사항 || {};
+  const etcLines = [];
+  if (etc.임대조건) etcLines.push(`임대조건: ${etc.임대조건}`);
+  if (etc.임대기간) etcLines.push(`임대기간: ${etc.임대기간}`);
+  if (etc['정정/취소사유']) etcLines.push(`정정/취소사유: ${etc['정정/취소사유']}`);
+  if (etcLines.length) parts.push(etcLines.join('\n'));
+
+  return parts.join('\n\n').trim();
+}
+
+function pickImages(detail) {
+  const pool = [
+    ...(detail?.전체이미지 || []),
+    ...(detail?.정보이미지 || []),
+    ...((detail?.공급정보 || []).flatMap(s => s?.이미지 || [])),
+  ];
+  const seen = new Set();
+  return pool.filter(img => {
+    if (!img?.url || seen.has(img.url)) return false;
+    seen.add(img.url);
+    return true;
+  });
+}
+
+function pickFiles(detail) {
+  return (detail?.전체파일 || []).filter(f => f?.url);
+}
+
+function renderDetailBody(notice, detail, errorMsg) {
+  const dday = ddayBadge(notice);
+  const overview = detail?.공급개요 || {};
+  const desc = pickDescription(detail);
+  const images = pickImages(detail);
+  const files = pickFiles(detail);
+  const mainDoc = files.find(f => (f.구분 || '').includes('PDF')) || files.find(f => (f.구분 || '').includes('공고문')) || files[0];
+  const otherDocs = files.filter(f => f !== mainDoc);
+  const ck = corpKey(notice.corporation);
+
+  return `
+    <div class="notice-top">
+      <span class="badge corp-${ck}">${escapeHTML(notice.corporation)}</span>
+      <span class="badge">${escapeHTML(notice.type)}</span>
+      ${dday}
+    </div>
+    <div class="modal-title">${escapeHTML(notice.title)}</div>
+    <div class="modal-meta">${escapeHTML(notice.region)} · 접수 ${escapeHTML(notice.startDate)} ~ ${escapeHTML(notice.endDate)}
+      ${overview.문의처 ? ` · 문의 ${escapeHTML(overview.문의처)}` : ''}
+    </div>
+    <div class="modal-actions" id="modalActions">
+      ${renderStarToggle(notice.id)}
+      ${renderExcludeToggle(notice.id)}
+    </div>
+
+    ${errorMsg ? `<div class="modal-desc">상세 정보를 불러오지 못했습니다 (${escapeHTML(errorMsg)}). 원본 페이지에서 확인해주세요.</div>` : ''}
+
+    ${desc ? `<div class="modal-section"><h3>설명 / 신청자격 안내</h3><div class="modal-desc">${escapeHTML(desc)}</div></div>` : ''}
+
+    ${images.length ? `<div class="modal-section"><h3>이미지 (${images.length})</h3>
+      <div class="img-grid">
+        ${images.map(img => `
+          <a href="${escapeHTML(img.url)}" target="_blank" rel="noopener" title="${escapeHTML(img.구분 || '')}">
+            <img src="${escapeHTML(img.url)}" alt="${escapeHTML(img.이미지명 || img.구분 || '이미지')}" loading="lazy" />
+          </a>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="modal-section">
+      <h3>공고문</h3>
+      ${mainDoc
+        ? `<a class="doc-btn" href="${escapeHTML(mainDoc.url)}" target="_blank" rel="noopener">📄 ${escapeHTML(mainDoc.파일명 || '공고문 보기')}</a>`
+        : `<span style="font-size:13px;color:var(--muted)">등록된 공고문 파일이 없습니다. 원본 페이지를 확인해주세요.</span>`}
+      ${otherDocs.length ? `<div class="doc-list">${otherDocs.map(f => `<a href="${escapeHTML(f.url)}" target="_blank" rel="noopener">📎 ${escapeHTML(f.파일명 || f.구분 || '첨부파일')}</a>`).join('')}</div>` : ''}
+    </div>
+
+    <div class="modal-section">
+      <a class="notice-link" href="${SITE_ORIGIN}/notices/${encodeURIComponent(notice.id)}/" target="_blank" rel="noopener">공공주택알리미 원본 페이지에서 지도·캘린더와 함께 보기 →</a>
+    </div>
+  `;
+}
+
+function openDetailModal() {
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetailModal() {
+  document.getElementById('detailModal').classList.remove('open');
+  currentModalNoticeId = null;
+}
+
+async function showNoticeDetail(id) {
+  const notice = notices.find(n => n.id === id);
+  if (!notice) return;
+  currentModalNoticeId = id;
+  const body = document.getElementById('detailModalBody');
+  body.innerHTML = `<div class="modal-loading">상세 정보를 불러오는 중...</div>`;
+  openDetailModal();
+  try {
+    const detail = await fetchNoticeDetail(id);
+    if (currentModalNoticeId !== id) return;
+    body.innerHTML = renderDetailBody(notice, detail);
+  } catch (err) {
+    if (currentModalNoticeId !== id) return;
+    body.innerHTML = renderDetailBody(notice, null, err.message);
+  }
+}
+
+function refreshOpenModalActions() {
+  if (!currentModalNoticeId) return;
+  const box = document.getElementById('modalActions');
+  if (!box) return;
+  box.innerHTML = `${renderStarToggle(currentModalNoticeId)}${renderExcludeToggle(currentModalNoticeId)}`;
+}
+
+document.getElementById('closeDetailModal').addEventListener('click', closeDetailModal);
+document.getElementById('detailModal').addEventListener('click', e => {
+  if (e.target.id === 'detailModal') closeDetailModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDetailModal();
+});
+
+document.getElementById('detailModalBody').addEventListener('click', e => {
+  const star = e.target.closest('.star-toggle');
+  if (star) {
+    const id = star.dataset.id;
+    if (favoriteIds.has(id)) favoriteIds.delete(id); else favoriteIds.add(id);
+    saveFavoriteIds();
+    runSearch();
+    return;
+  }
+  const excl = e.target.closest('.exclude-toggle');
+  if (excl) {
+    const id = excl.dataset.id;
+    if (excludedIds.has(id)) excludedIds.delete(id); else excludedIds.add(id);
+    saveExcludedIds();
+    runSearch();
+  }
+});
+
+['recoList', 'matchList', 'excludedList', 'favoriteList'].forEach(listId => {
+  const list = document.getElementById(listId);
+
+  list.addEventListener('click', e => {
+    if (e.target.closest('.notice-link')) return; // 원본 페이지 링크는 그대로 새 탭으로 이동
+
+    const star = e.target.closest('.star-toggle');
+    if (star) {
+      e.preventDefault();
+      const id = star.dataset.id;
+      if (favoriteIds.has(id)) favoriteIds.delete(id); else favoriteIds.add(id);
+      saveFavoriteIds();
+      runSearch();
+      return;
+    }
+
+    const excl = e.target.closest('.exclude-toggle');
+    if (excl) {
+      e.preventDefault();
+      const id = excl.dataset.id;
+      if (excludedIds.has(id)) excludedIds.delete(id); else excludedIds.add(id);
+      saveExcludedIds();
+      runSearch();
+      return;
+    }
+
+    const card = e.target.closest('.notice-card');
+    if (!card) return;
+    e.preventDefault();
+    showNoticeDetail(card.dataset.id);
+  });
+});
+
+document.getElementById('toggleExcludedPanel').addEventListener('click', () => {
+  showExcludedPanel = !showExcludedPanel;
+  renderExcludedPanel();
+});
+
+function showFavoritesView() {
+  document.getElementById('searchView').style.display = 'none';
+  document.getElementById('favoritesView').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+function showSearchView() {
+  document.getElementById('favoritesView').style.display = 'none';
+  document.getElementById('searchView').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+document.getElementById('openFavoritesView').addEventListener('click', showFavoritesView);
+document.getElementById('closeFavoritesView').addEventListener('click', showSearchView);
+
+buildTagChips();
+loadNotices();
+</script>
+</body>
+</html>

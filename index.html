@@ -382,10 +382,12 @@
 </div>
 
 <script>
-const FIREBASE_KEY = "AIzaSyBrKtY6vl0e6Mc-TnCqTcB7BBZQ335mNcQ";
+const FIREBASE_KEY = "AIzaSyBr•••••••••••••••••••••••••••••••";
 const FIRESTORE_BASE = "https://firestore.googleapis.com/v1/projects/public-housing-333410/databases/(default)/documents";
 const API = `${FIRESTORE_BASE}/notice_posting/notice_items?key=${FIREBASE_KEY}`;
 const SITE_ORIGIN = "https://public-home.com";
+const APPLYHOME_KEY = "81799b8c3aef6deb3c0fd235732923f4d664dcbacf43b73b693f0e505be3ba90";
+const APPLYHOME_BASE = "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1";
 const detailCache = new Map();
 let sortMode = 'deadline'; // 'deadline' | 'latest'
 let currentModalNoticeId = null;
@@ -439,10 +441,17 @@ function decodeFields(fields) {
 }
 function parseDate(s) {
   if (!s) return null;
-  const parts = s.split('.').map(Number);
+  const parts = s.split(/[.\-]/).map(Number);
   if (parts.length < 3 || parts.some(isNaN)) return null;
   const [y, m, d] = parts;
   return new Date(y, m - 1, d);
+}
+function classifyApplyhomeCorp(bsnsMbyNm) {
+  const name = (bsnsMbyNm || '').replace(/\s+/g, '');
+  if (name.includes('한국토지주택공사')) return 'LH';
+  if (name.includes('서울주택도시공사')) return 'SH';
+  if (name.includes('경기주택도시공사')) return 'GH';
+  return bsnsMbyNm || '민간';
 }
 function todayMidnight() {
   const t = new Date(); t.setHours(0, 0, 0, 0); return t;
@@ -465,28 +474,64 @@ function corpKey(corporation) {
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
+async function loadFirestoreNotices() {
+  const res = await fetch(API);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const doc = await res.json();
+  const items = decodeFields(doc.fields).items || [];
+  return items.map(it => {
+    const af = it.alertFilter || {};
+    let targets = af.supplyTargets;
+    if (typeof targets === 'string') targets = [targets];
+    if (!Array.isArray(targets)) targets = [];
+    return {
+      id: it.id, title: it.title || '', corporation: it.corporation || '기타',
+      type: it.type || '', region: it.region || '', startDate: it.startDate || '',
+      endDate: it.endDate || '', state: it.state || '',
+      announcementType: af.announcementType || '',
+      supplyTargets: targets,
+    };
+  });
+}
+
+async function loadApplyhomeNotices() {
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const gteDate = sixMonthsAgo.toISOString().slice(0, 10);
+    const url = `${APPLYHOME_BASE}/getAPTLttotPblancDetail?page=1&perPage=300&cond%5BRCRIT_PBLANC_DE%3A%3AGTE%5D=${gteDate}&serviceKey=${encodeURIComponent(APPLYHOME_KEY)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const rows = json.data || [];
+    return rows.map(r => ({
+      id: `apply:${r.HOUSE_MANAGE_NO}:${r.PBLANC_NO}`,
+      title: r.HOUSE_NM || '',
+      corporation: classifyApplyhomeCorp(r.BSNS_MBY_NM),
+      type: [r.HOUSE_DTL_SECD_NM, r.HOUSE_SECD_NM].filter(Boolean).join(' ') || '청약',
+      region: r.SUBSCRPT_AREA_CODE_NM || '',
+      startDate: r.RCEPT_BGNDE || '',
+      endDate: r.RCEPT_ENDDE || '',
+      state: '', announcementType: '', supplyTargets: [],
+      isApplyhome: true,
+      applyhomeUrl: r.PBLANC_URL || '',
+    }));
+  } catch (err) {
+    console.error('청약홈 데이터를 불러오지 못했습니다:', err);
+    return [];
+  }
+}
+
 async function loadNotices() {
   setStatus('공고 데이터를 불러오는 중...');
   try {
-    const res = await fetch(API);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const doc = await res.json();
-    const items = decodeFields(doc.fields).items || [];
-    notices = items.map(it => {
-      const af = it.alertFilter || {};
-      let targets = af.supplyTargets;
-      if (typeof targets === 'string') targets = [targets];
-      if (!Array.isArray(targets)) targets = [];
-      return {
-        id: it.id, title: it.title || '', corporation: it.corporation || '기타',
-        type: it.type || '', region: it.region || '', startDate: it.startDate || '',
-        endDate: it.endDate || '', state: it.state || '',
-        announcementType: af.announcementType || '',
-        supplyTargets: targets,
-      };
-    });
+    const [firestoreNotices, applyhomeNotices] = await Promise.all([
+      loadFirestoreNotices(),
+      loadApplyhomeNotices(),
+    ]);
+    notices = [...firestoreNotices, ...applyhomeNotices];
     populateProvinceOptions();
-    setStatus(`총 ${notices.length}건의 공고를 불러왔습니다. (진행중 ${notices.filter(isOpen).length}건)`);
+    setStatus(`총 ${notices.length}건의 공고를 불러왔습니다. (진행중 ${notices.filter(isOpen).length}건, 청약홈 ${applyhomeNotices.length}건)`);
     runSearch();
   } catch (err) {
     setStatus('데이터를 불러오지 못했습니다: ' + err.message + ' (네트워크 연결을 확인하세요)');
@@ -553,19 +598,25 @@ function renderExcludeToggle(id) {
 function renderCard(n, opts) {
   const tagBadges = (opts.matchedTags || []).map(t => `<span class="badge tag">${TAG_LABELS[t] || t}</span>`).join('');
   const ck = corpKey(n.corporation);
+  const sourceBadge = n.isApplyhome ? `<span class="badge" style="background:#ecfdf5;color:#047857;">청약홈 분양</span>` : '';
+  const detailLink = n.isApplyhome ? '' : `<a class="btn-detail" data-id="${escapeHTML(n.id)}">상세보기 (설명·이미지·공고문) →</a>`;
+  const originLink = n.isApplyhome
+    ? (n.applyhomeUrl ? `<a class="notice-link" href="${escapeHTML(n.applyhomeUrl)}" target="_blank" rel="noopener">공고문 보기 →</a>` : '')
+    : `<a class="notice-link" href="${SITE_ORIGIN}/notices/${encodeURIComponent(n.id)}/" target="_blank" rel="noopener">원본 페이지 →</a>`;
   return `
     <div class="notice-card ${opts.top ? 'top' : ''} corp-${ck}" data-id="${escapeHTML(n.id)}">
       <div class="notice-top">
         <span class="badge corp-${ck}">${escapeHTML(n.corporation)}</span>
         <span class="badge">${escapeHTML(n.type)}</span>
+        ${sourceBadge}
         ${ddayBadge(n)}
         ${tagBadges}
       </div>
       <div class="notice-title">${escapeHTML(n.title)}</div>
       <div class="notice-meta">${escapeHTML(n.region)} · 접수 ${escapeHTML(n.startDate)} ~ ${escapeHTML(n.endDate)}</div>
       <div class="notice-actions">
-        <a class="btn-detail" data-id="${escapeHTML(n.id)}">상세보기 (설명·이미지·공고문) →</a>
-        <a class="notice-link" href="${SITE_ORIGIN}/notices/${encodeURIComponent(n.id)}/" target="_blank" rel="noopener">원본 페이지 →</a>
+        ${detailLink}
+        ${originLink}
         ${renderStarToggle(n.id)}
         ${renderExcludeToggle(n.id)}
       </div>
@@ -885,13 +936,39 @@ function closeDetailModal() {
   currentModalNoticeId = null;
 }
 
+function renderApplyhomeDetailBody(notice) {
+  const ck = corpKey(notice.corporation);
+  return `
+    <div class="notice-top">
+      <span class="badge corp-${ck}">${escapeHTML(notice.corporation)}</span>
+      <span class="badge">${escapeHTML(notice.type)}</span>
+      ${ddayBadge(notice)}
+    </div>
+    <div class="modal-title">${escapeHTML(notice.title)}</div>
+    <div class="modal-meta">${escapeHTML(notice.region)} · 청약접수 ${escapeHTML(notice.startDate)} ~ ${escapeHTML(notice.endDate)}</div>
+    <div class="modal-actions" id="modalActions">
+      ${renderStarToggle(notice.id)}
+      ${renderExcludeToggle(notice.id)}
+    </div>
+    <div class="modal-section">
+      <h3>안내</h3>
+      <div class="modal-desc">한국부동산원 청약Home 데이터입니다. 평형별 세대수·경쟁률 등 세부 내용은 공고문에서 확인하세요.</div>
+    </div>
+    ${notice.applyhomeUrl ? `<div class="modal-section"><a class="doc-btn" href="${escapeHTML(notice.applyhomeUrl)}" target="_blank" rel="noopener">📄 공고문 보기</a></div>` : ''}
+  `;
+}
+
 async function showNoticeDetail(id) {
   const notice = notices.find(n => n.id === id);
   if (!notice) return;
   currentModalNoticeId = id;
   const body = document.getElementById('detailModalBody');
-  body.innerHTML = `<div class="modal-loading">상세 정보를 불러오는 중...</div>`;
   openDetailModal();
+  if (notice.isApplyhome) {
+    body.innerHTML = renderApplyhomeDetailBody(notice);
+    return;
+  }
+  body.innerHTML = `<div class="modal-loading">상세 정보를 불러오는 중...</div>`;
   try {
     const detail = await fetchNoticeDetail(id);
     if (currentModalNoticeId !== id) return;

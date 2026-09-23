@@ -25,7 +25,7 @@
 
   header {
     display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    max-width: 1000px; margin: 0 auto; padding: 26px 20px 6px;
+    max-width: 1180px; margin: 0 auto; padding: 26px 20px 6px;
   }
   header .header-titles { flex: 1; min-width: 0; }
   header .eyebrow {
@@ -44,7 +44,40 @@
   .nav-favorite-btn:hover { transform: translateY(-1px); }
   .nav-favorite-btn:active { transform: translateY(0); }
 
-  main { max-width: 1000px; margin: 0 auto; padding: 14px 20px 70px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 14px 20px 70px; }
+
+  .layout-with-sidebar { display: flex; align-items: flex-start; gap: 20px; }
+  .corp-sidebar {
+    flex: 0 0 152px; display: flex; flex-direction: column; gap: 5px;
+    position: sticky; top: 14px;
+  }
+  .corp-sidebar-title {
+    font-size: 11px; font-weight: 800; color: var(--muted-2); text-transform: uppercase;
+    letter-spacing: .05em; margin: 0 0 4px 4px;
+  }
+  .corp-tab {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border: 1px solid var(--border); background: #fff; color: var(--text);
+    font-size: 13px; font-weight: 600; font-family: inherit;
+    padding: 9px 12px; border-radius: 8px; cursor: pointer; text-align: left;
+    transition: all .15s ease;
+  }
+  .corp-tab:hover { border-color: #c9cee0; }
+  .corp-tab.active { background: var(--blue-flat); border-color: var(--blue-flat); color: #fff; }
+  .corp-tab-count {
+    font-size: 11px; font-weight: 700; color: var(--muted); background: #eef1f5;
+    padding: 1px 7px; border-radius: 999px; min-width: 18px; text-align: center;
+  }
+  .corp-tab.active .corp-tab-count { background: rgba(255,255,255,.22); color: #fff; }
+  .content-main { flex: 1; min-width: 0; }
+  @media (max-width: 780px) {
+    .layout-with-sidebar { flex-direction: column; }
+    .corp-sidebar {
+      position: static; flex-direction: row; flex-wrap: wrap; width: 100%;
+    }
+    .corp-sidebar-title { display: none; }
+    .corp-tab { flex: 1 1 auto; }
+  }
 
   .panel {
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -286,6 +319,17 @@
 </header>
 <main>
 <div id="searchView">
+ <div class="layout-with-sidebar">
+  <nav class="corp-sidebar" id="corpSidebar">
+    <div class="corp-sidebar-title">공사별 보기</div>
+    <button class="corp-tab active" type="button" data-corp="all">전체 <span class="corp-tab-count">0</span></button>
+    <button class="corp-tab" type="button" data-corp="LH">LH <span class="corp-tab-count">0</span></button>
+    <button class="corp-tab" type="button" data-corp="SH">SH <span class="corp-tab-count">0</span></button>
+    <button class="corp-tab" type="button" data-corp="GH">GH <span class="corp-tab-count">0</span></button>
+    <button class="corp-tab" type="button" data-corp="HUG">HUG <span class="corp-tab-count">0</span></button>
+    <button class="corp-tab" type="button" data-corp="other">기타/민간 <span class="corp-tab-count">0</span></button>
+  </nav>
+  <div class="content-main">
   <div class="panel">
     <h2>🔍 키워드 검색</h2>
     <input id="keyword" type="text" placeholder="지역, 단지명, 공고명으로 검색 (예: 신혼희망, 부천, 청년주택)" style="width:100%" />
@@ -362,6 +406,8 @@
     ⚠️ 이 도구는 공공주택알리미의 공급대상 태그(청년/신혼부부/저소득 등)와 지역·마감일만으로 1차 필터링합니다.
     정확한 나이 상한, 소득/자산 기준, 세부 자격요건은 반드시 각 공고의 원본 공고문(PDF)에서 확인하세요.
   </div>
+  </div>
+ </div>
 </div>
 
 <div id="favoritesView">
@@ -382,7 +428,7 @@
 </div>
 
 <script>
-const FIREBASE_KEY = "AIzaSyBr•••••••••••••••••••••••••••••••";
+const FIREBASE_KEY = "AIzaSyBrKtY6vl0e6Mc-TnCqTcB7BBZQ335mNcQ";
 const FIRESTORE_BASE = "https://firestore.googleapis.com/v1/projects/public-housing-333410/databases/(default)/documents";
 const API = `${FIRESTORE_BASE}/notice_posting/notice_items?key=${FIREBASE_KEY}`;
 const SITE_ORIGIN = "https://public-home.com";
@@ -390,6 +436,7 @@ const APPLYHOME_KEY = "81799b8c3aef6deb3c0fd235732923f4d664dcbacf43b73b693f0e505
 const APPLYHOME_BASE = "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1";
 const detailCache = new Map();
 let sortMode = 'deadline'; // 'deadline' | 'latest'
+let corpFilter = 'all'; // 'all' | 'LH' | 'SH' | 'GH' | 'HUG' | 'other'
 let currentModalNoticeId = null;
 let currentFilteredNotices = [];
 let calendarCursor = (() => { const d = new Date(); d.setDate(1); return d; })();
@@ -623,12 +670,24 @@ function renderCard(n, opts) {
     </div>`;
 }
 
+function updateCorpTabCounts(list) {
+  const counts = { all: list.length, LH: 0, SH: 0, GH: 0, HUG: 0, other: 0 };
+  list.forEach(n => {
+    const k = corpKey(n.corporation);
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  document.querySelectorAll('.corp-tab').forEach(btn => {
+    const countEl = btn.querySelector('.corp-tab-count');
+    if (countEl) countEl.textContent = counts[btn.dataset.corp] ?? 0;
+  });
+}
+
 function runSearch() {
   const keyword = document.getElementById('keyword').value.trim().toLowerCase();
   const province = document.getElementById('province').value;
   const userTags = getUserTags();
 
-  let matched = notices.filter(n => {
+  const baseFiltered = notices.filter(n => {
     if (excludedIds.has(n.id)) return false;
     if (!isOpen(n)) return false;
     if (province && n.region !== province) return false;
@@ -638,12 +697,17 @@ function runSearch() {
     }
     if (n.supplyTargets.length === 0) return true;
     return n.supplyTargets.some(t => t === 'etc' || userTags.has(t));
-  }).map(n => {
-    const matchedTags = n.supplyTargets.filter(t => userTags.has(t));
-    const d = daysLeft(n);
-    const score = matchedTags.length * 10 - (d === null ? 30 : d) * 0.05;
-    return { ...n, matchedTags, score };
   });
+
+  updateCorpTabCounts(baseFiltered);
+
+  let matched = (corpFilter === 'all' ? baseFiltered : baseFiltered.filter(n => corpKey(n.corporation) === corpFilter))
+    .map(n => {
+      const matchedTags = n.supplyTargets.filter(t => userTags.has(t));
+      const d = daysLeft(n);
+      const score = matchedTags.length * 10 - (d === null ? 30 : d) * 0.05;
+      return { ...n, matchedTags, score };
+    });
 
   currentFilteredNotices = matched;
 
@@ -828,6 +892,14 @@ document.getElementById('sortTabs').addEventListener('click', e => {
   if (!btn) return;
   sortMode = btn.dataset.sort;
   document.querySelectorAll('#sortTabs .sort-tab').forEach(b => b.classList.toggle('active', b === btn));
+  runSearch();
+});
+
+document.getElementById('corpSidebar').addEventListener('click', e => {
+  const btn = e.target.closest('.corp-tab');
+  if (!btn) return;
+  corpFilter = btn.dataset.corp;
+  document.querySelectorAll('#corpSidebar .corp-tab').forEach(b => b.classList.toggle('active', b === btn));
   runSearch();
 });
 

@@ -1060,12 +1060,25 @@ function pickFiles(detail) {
   return (detail?.전체파일 || []).filter(f => f?.url);
 }
 
-// Firebase Storage가 PDF를 application/octet-stream으로 내려줘서 브라우저가 다운로드해버림.
-// CORS는 열려 있으니 직접 받아서 application/pdf Blob으로 다시 감싸 미리보기로 띄운다.
+// 공고문 서버들이 PDF를 다운로드용(application/octet-stream, attachment)으로 내려줘서 링크를 누르면 저장만 된다.
+// 브라우저에서 직접 받아 application/pdf Blob으로 다시 감싸 미리보기로 띄운다.
+// 단, 파일 서버가 다른 사이트의 읽기를 허용(CORS)해야 가능하다:
+//  - Firebase Storage(SH·GH·HUG 등 공공주택알리미가 올린 파일): 허용 → 미리보기
+//  - LH(apply.lh.or.kr) 등: 허용하지 않으면 한 번 안내하고, 그 뒤로는 그 서버 파일은 바로 원본 링크로 연다
+const NO_CORS_HOSTS_KEY = 'publicHomeNoCorsHosts:v1';
+function loadNoCorsHosts() {
+  try { return new Set(JSON.parse(localStorage.getItem(NO_CORS_HOSTS_KEY) || '[]')); } catch { return new Set(); }
+}
+function markNoCorsHost(host) {
+  const hosts = loadNoCorsHosts();
+  hosts.add(host);
+  try { localStorage.setItem(NO_CORS_HOSTS_KEY, JSON.stringify([...hosts])); } catch {}
+}
+
 function isPreviewablePdf(file) {
-  let host = '', path = '';
-  try { const u = new URL(file.url); host = u.hostname; path = decodeURIComponent(u.pathname); } catch { return false; }
-  if (host !== 'firebasestorage.googleapis.com') return false;
+  let u, path = '';
+  try { u = new URL(file.url); path = decodeURIComponent(u.pathname); } catch { return false; }
+  if (u.protocol !== 'https:' || loadNoCorsHosts().has(u.hostname)) return false;
   return /\.pdf$/i.test(path) || /\.pdf$/i.test(file.파일명 || '');
 }
 
@@ -1113,11 +1126,32 @@ async function openPdfViewer(url, name) {
   document.getElementById('pdfDownload').hidden = true;
   document.getElementById('pdfViewer').classList.add('open');
   setPdfStatus('공고문을 불러오는 중...');
+  const host = new URL(url).hostname;
+  let buf;
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const buf = await res.arrayBuffer();
+    buf = await res.arrayBuffer();
+    // 서버가 PDF 대신 오류 페이지(HTML)를 줄 때도 있다
+    if (new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(1024, buf.byteLength))).indexOf('%PDF') === -1) {
+      throw new Error('PDF 파일이 아닌 응답');
+    }
+  } catch (err) {
     if (token !== pdfViewToken) return;
+    // fetch 자체가 막힘(TypeError) = 파일 서버가 다른 사이트의 읽기를 허용하지 않음(CORS)
+    if (err instanceof TypeError && host !== 'firebasestorage.googleapis.com') {
+      markNoCorsHost(host);
+      setPdfStatus(`<div>이 공고문은 <b>${escapeHTML(host)}</b> 서버에 있는데, 이 서버가 다른 사이트에서 파일을 여는 것을 막아 두어 여기서는 미리볼 수 없습니다.</div>
+        <a class="doc-btn" href="${escapeHTML(url)}" target="_blank" rel="noopener">📄 공고문 파일 받기</a>
+        <span style="opacity:.75;font-size:12.5px">다음부터 이 서버의 공고문은 누르면 바로 파일로 받습니다.</span>`);
+      return;
+    }
+    setPdfStatus(`미리보기를 불러오지 못했습니다 (${escapeHTML(err.message)}).
+      <a href="${escapeHTML(url)}" target="_blank" rel="noopener">원본 파일 열기 →</a>`);
+    return;
+  }
+  if (token !== pdfViewToken) return;
+  try {
     pdfBlobUrl = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
     const newTab = document.getElementById('pdfNewTab');
     const dl = document.getElementById('pdfDownload');
